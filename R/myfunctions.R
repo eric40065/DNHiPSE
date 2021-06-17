@@ -3,7 +3,7 @@
 #' @param data a data.frame where columns must be in the order of T1, d1, T2, d2, T3, d3, Z
 #' @return A list of self-described result
 #' @export
-DNH_iPSE = function(data, zvec = NULL, plot_result = TRUE, iPSEweights = TRUE, bootstrap = FALSE, boot_times = 1000, num_of_cores = 1, for_bootstrap = FALSE,
+DNHiPSE = function(data, zvec = NULL, plot_result = TRUE, iPSEweights = TRUE, bootstrap = FALSE, boot_times = 1000, num_of_cores = 1, for_bootstrap = FALSE,
                     push_warnings = TRUE, plot_unit = 1, save_plot = FALSE, plot_name = NULL, folder_name = NULL, match_ylim = FALSE, PM = FALSE, timer = TRUE, Med_TTEM = FALSE, sensitivity_analysis = FALSE, sensitivity_analysis_match_ylim = FALSE){
   # zvec = NULL; plot_result = TRUE; iPSEweights = TRUE; bootstrap = TRUE; boot_times = 1000; num_of_cores = 1; for_bootstrap = FALSE; push_warnings = TRUE; plot_unit = 1; save_plot = F; plot_name = NULL; folder_name = NULL; match_ylim = FALSE; PM = FALSE; timer = TRUE; Med_TTEM = TRUE; sensitivity_analysis = TRUE; sensitivity_analysis_match_ylim = 'effect'
   if(bootstrap & num_of_cores > 1){require(snow); require(doSNOW); require(pracma); require(foreach);}
@@ -53,7 +53,7 @@ DNH_iPSE = function(data, zvec = NULL, plot_result = TRUE, iPSEweights = TRUE, b
                        'DNH_leave', 'DNH_make_plot_main', 'DNH_list2names', 'DNH_rep_row', 'DNH_revcumsum', 'DNH_sort_mat', 'DNH_nan2zero', 'DNH_get_position', 'DNH_get_sick_number',
                        'DNH_get_Ybar', 'DNH_get_Ybar_n1..', 'DNH_get_Ybar_..n2', 'DNH_get_Ybar_n1n2', 'DNH_get_w_n1n2', 'DNH_get_w_n1..', 'DNH_get_w_..n2', 'DNH_get_wcond_n1n2',
                        'DNH_get_weights', 'DNH_get_dN3bar_n1n2', 'DNH_get_wa', 'DNH_get_wb', 'DNH_get_dL_n1n2', 'DNH_get_components', 'DNH_get_counterfactual_hazard',
-                       'DNH_get_effect', 'DNH_PM', 'DNH_iPSE')
+                       'DNH_get_effect', 'DNH_PM', 'DNHiPSE')
       snow::clusterExport(cl, my_functions); doSNOW::registerDoSNOW(cl); pb = txtProgressBar(max = boot_times, style = 3); progress = function(n) setTxtProgressBar(pb, n); opts = list(progress = progress)
 
       boot_effect = foreach(i = 1:boot_times, .options.snow = opts, .combine = 'c') %dopar%{
@@ -62,7 +62,7 @@ DNH_iPSE = function(data, zvec = NULL, plot_result = TRUE, iPSEweights = TRUE, b
         boot_data = data[boot_index, ]
         boot_data = DNH_boot_shift_data(boot_data, min_diff)
         boot_data = boot_data[sort(boot_data$T3, index.return = TRUE)$ix, ]
-        boot_effect = tryCatch(DNH_iPSE(boot_data, zvec = zvec, iPSEweights = iPSEweights, PM = PM, bootstrap = FALSE, plot_result = FALSE, for_bootstrap = TRUE), error = function(msg){return(list(msg = msg))})
+        boot_effect = tryCatch(DNHiPSE(boot_data, zvec = zvec, iPSEweights = iPSEweights, PM = PM, bootstrap = FALSE, plot_result = FALSE, for_bootstrap = TRUE), error = function(msg){return(list(msg = msg))})
         rm(list = "boot_data")
         gc()
         return(list(boot_effect))
@@ -103,7 +103,7 @@ DNH_iPSE = function(data, zvec = NULL, plot_result = TRUE, iPSEweights = TRUE, b
         boot_data = data[boot_index, ]
         boot_data = DNH_boot_shift_data(boot_data, min_diff)
         boot_data = boot_data[sort(boot_data$T3, index.return = TRUE)$ix, ]
-        boot_effect = tryCatch(DNH_iPSE(boot_data, zvec = zvec, iPSEweights = iPSEweights, PM = PM, bootstrap = FALSE, plot_result = FALSE, for_bootstrap = TRUE), error = function(msg){return(list(msg = msg))})
+        boot_effect = tryCatch(DNHiPSE(boot_data, zvec = zvec, iPSEweights = iPSEweights, PM = PM, bootstrap = FALSE, plot_result = FALSE, for_bootstrap = TRUE), error = function(msg){return(list(msg = msg))})
         if(is.null(boot_effect$msg)){
           index_safe_boot = c(index_safe_boot, i)
           safe_num = safe_num + 1
@@ -179,12 +179,18 @@ DNH_iPSE = function(data, zvec = NULL, plot_result = TRUE, iPSEweights = TRUE, b
 
 # generate sample data and simulation
 #' @export
-DNH_simulation = function(type, sample_size = 1e3, alphaZ, betaZ, gammaZ, iPSEweights = TRUE, repeat_size = 1e3, num_of_cores = 1, ylim = NULL){
+DNH_simulation = function(type, hypo, sample_size = 1e3, iPSEweights = TRUE, repeat_size = 1e3, num_of_cores = 1, ylim = NULL){
+  if(hypo == 'null'){
+    alphaZ = 0; betaZ = 0; gammaZ = 0
+  }else{
+    alphaZ = 1; betaZ = 1; gammaZ = 1
+  }
+
   if(type == "coverage"){
     timeline = seq(0, 10, by = 0.01)
     true_value = DNH_simulation_true_value(alphaZ, betaZ, gammaZ, out_time = timeline, iPSEweights = iPSEweights)
 
-    if(repeat_size <= 200){warning("Small repeat_size may lead to ill result while computing coverage")}
+    if(repeat_size <= 200){warning("Small repeat_size may lead to ill result while computing coverage", immediate. = TRUE)}
     coverage_table = list(rep(0, length(timeline)), rep(0, length(timeline)), rep(0, length(timeline)), rep(0, length(timeline)))
 
     if(num_of_cores > 1){
@@ -194,12 +200,12 @@ DNH_simulation = function(type, sample_size = 1e3, alphaZ, betaZ, gammaZ, iPSEwe
                        'DNH_leave', 'DNH_make_plot_main', 'DNH_list2names', 'DNH_rep_row', 'DNH_revcumsum', 'DNH_sort_mat', 'DNH_nan2zero', 'DNH_get_position', 'DNH_get_sick_number',
                        'DNH_get_Ybar', 'DNH_get_Ybar_n1..', 'DNH_get_Ybar_..n2', 'DNH_get_Ybar_n1n2', 'DNH_get_w_n1n2', 'DNH_get_w_n1..', 'DNH_get_w_..n2', 'DNH_get_wcond_n1n2',
                        'DNH_get_weights', 'DNH_get_dN3bar_n1n2', 'DNH_get_wa', 'DNH_get_wb', 'DNH_get_dL_n1n2', 'DNH_get_components', 'DNH_get_counterfactual_hazard',
-                       'DNH_get_effect', 'DNH_PM', 'DNH_iPSE')
+                       'DNH_get_effect', 'DNH_PM', 'DNHiPSE')
       snow::clusterExport(cl, my_functions); doSNOW::registerDoSNOW(cl); pb = txtProgressBar(max = repeat_size, style = 3); progress = function(n) setTxtProgressBar(pb, n); opts = list(progress = progress)
 
       result_tmp = foreach(i = 1:repeat_size, .options.snow = opts, .combine = 'c') %dopar%{
         data = DNH_generate_data(m = sample_size, alphaZ, betaZ, gammaZ, seed = i)
-        result_tmp = tryCatch(DNH_iPSE(data, bootstrap = TRUE, iPSEweights = iPSEweights, plot_result = FALSE)$effect, error = function(msg){return(list(msg = msg))})
+        result_tmp = tryCatch(DNHiPSE(data, bootstrap = TRUE, iPSEweights = iPSEweights, plot_result = FALSE)$effect, error = function(msg){return(list(msg = msg))})
 
         boot_lower_now = vector("list", 4)
         boot_upper_now = vector("list", 4)
@@ -221,7 +227,7 @@ DNH_simulation = function(type, sample_size = 1e3, alphaZ, betaZ, gammaZ, iPSEwe
     }else{
       for(i in 1:repeat_size){
         data = DNH_generate_data(m = sample_size, alphaZ, betaZ, gammaZ, seed = i)
-        result_tmp = DNH_iPSE(data, bootstrap = TRUE, iPSEweights = iPSEweights, plot_result = FALSE, timer = FALSE)$effect
+        result_tmp = DNHiPSE(data, bootstrap = TRUE, iPSEweights = iPSEweights, plot_result = FALSE, timer = FALSE)$effect
 
         for(j in 1:4){
           boot_lower_now = approx(result_tmp[[j]]$time, result_tmp[[j]]$boot_lower, timeline, yleft = 0, rule = 2)$y
@@ -238,8 +244,8 @@ DNH_simulation = function(type, sample_size = 1e3, alphaZ, betaZ, gammaZ, iPSEwe
     coverage = list(percentile = data.frame(matrix(0, nrow = 4, ncol = 3), row.names = c("ZY", "Z2Y", "Z1Y", "Z12Y")))
     colnames(coverage$percentile) = c('follow_up_25', 'follow_up_50', 'follow_up_75')
     for(j in 1:4){coverage$percentile[j, ] = coverage_table[[j]][look_at_index]}
-    coverage$raw = data.frame(time = timeline, coverage = coverage_table)
-    colnames(coverage$raw) = c("time", "ZY", "Z2Y", "Z1Y", "Z12Y")
+    # coverage$raw = data.frame(time = timeline, coverage = coverage_table)
+    # colnames(coverage$raw) = c("time", "ZY", "Z2Y", "Z1Y", "Z12Y")
     return(coverage)
 
   }else{
@@ -252,12 +258,12 @@ DNH_simulation = function(type, sample_size = 1e3, alphaZ, betaZ, gammaZ, iPSEwe
       ylimvec = list(c(0, 0), c(0, 0), c(0, 0), c(0, 0))
       ylim_all = c(0, 0)
     }
-    pracma::fprintf('| bootstrap        20        30        40        50        60        70        80        90        | 100\n')
+    pracma::fprintf('| unbiasedness     20        30        40        50        60        70        80        90        | 100\n')
     result = lapply(seq_len(repeat_size), function(x){matrix(0, nrow = length(timeline), ncol = 4)})
     for(i in 1:repeat_size){
       if(i %% (repeat_size/100) == 0){pracma::fprintf("-")}
       data = DNH_generate_data(m = sample_size, alphaZ, betaZ, gammaZ, seed = i)
-      result_tmp = DNH_iPSE(data, bootstrap = FALSE, iPSEweights = iPSEweights)$effect
+      result_tmp = DNHiPSE(data, bootstrap = FALSE, iPSEweights = iPSEweights)$effect
 
       for(j in 1:4){
         result[[i]][, j] = approx(result_tmp[[j]]$time, result_tmp[[j]]$effect, timeline, yleft = 0, rule = 2)$y
@@ -1296,14 +1302,14 @@ DNH_get_sen_ana = function(data, components, zvec, iPSEweights, effect_name){
   # effect_name = names(effect)
   effect = list(case1 = NULL, case2 = NULL, case3 = NULL, case4 = NULL, case5 = NULL)
   logit_dLn1n2 = components$dLn1n2
-  logit_dLn1n2$dL00$Z1$value = logit(components$dLn1n2$dL00$Z1$value)
-  logit_dLn1n2$dL00$Z2$value = logit(components$dLn1n2$dL00$Z2$value)
-  logit_dLn1n2$dL01$Z1$value = logit(components$dLn1n2$dL01$Z1$value)
-  logit_dLn1n2$dL01$Z2$value = logit(components$dLn1n2$dL01$Z2$value)
-  logit_dLn1n2$dL10$Z1$value = logit(components$dLn1n2$dL10$Z1$value)
-  logit_dLn1n2$dL10$Z2$value = logit(components$dLn1n2$dL10$Z2$value)
-  logit_dLn1n2$dL11$Z1$value = logit(components$dLn1n2$dL11$Z1$value)
-  logit_dLn1n2$dL11$Z2$value = logit(components$dLn1n2$dL11$Z2$value)
+  logit_dLn1n2$dL00$Z1$value = pracma::logit(components$dLn1n2$dL00$Z1$value)
+  logit_dLn1n2$dL00$Z2$value = pracma::logit(components$dLn1n2$dL00$Z2$value)
+  logit_dLn1n2$dL01$Z1$value = pracma::logit(components$dLn1n2$dL01$Z1$value)
+  logit_dLn1n2$dL01$Z2$value = pracma::logit(components$dLn1n2$dL01$Z2$value)
+  logit_dLn1n2$dL10$Z1$value = pracma::logit(components$dLn1n2$dL10$Z1$value)
+  logit_dLn1n2$dL10$Z2$value = pracma::logit(components$dLn1n2$dL10$Z2$value)
+  logit_dLn1n2$dL11$Z1$value = pracma::logit(components$dLn1n2$dL11$Z1$value)
+  logit_dLn1n2$dL11$Z2$value = pracma::logit(components$dLn1n2$dL11$Z2$value)
 
   ## case 1
   gamma = seq(-1, 1, length.out = 11)
