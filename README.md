@@ -10,7 +10,7 @@ devtools::install_github("eric40065/DNHiPSE")
 The following code can reproduce everything mentioned in our paper. It will take 2 hours to reproduce the all the simulation and analyses of real data application.
 ```r
 library(DNHiPSE)
-# To reproduce Table 1
+# To reproduce Table 1. It will take 1.8 hours to reproduce it.
 Table11 = DNH_simulation("coverage", "null", sample_size = 300)
 Table12 = DNH_simulation("coverage", "null", sample_size = 1000)
 Table13 = DNH_simulation("coverage", "alternative", sample_size = 1000)
