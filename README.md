@@ -7,7 +7,7 @@ devtools::install_github("eric40065/DNHiPSE")
 ```
 
 ## Usage
-The following code can reproduce everything mentioned in our paper. It will take 2 hours to reproduce the analyses.
+The following code can reproduce everything mentioned in our paper. It will take 2 hours to reproduce the all the simulation and analyses of real data application.
 ```r
 library(DNHiPSE)
 # To reproduce Table 1
