@@ -3,9 +3,9 @@
 #' @param data a data.frame where columns must be in the order of T1, d1, T2, d2, T3, d3, Z
 #' @return A list of self-described result
 #' @export
-DNHiPSE = function(data, zvec = NULL, plot_result = TRUE, iPSEweights = TRUE, bootstrap = FALSE, boot_times = 1000, num_of_cores = 1, for_bootstrap = FALSE,
-                    push_warnings = TRUE, plot_unit = 1, save_plot = FALSE, plot_name = NULL, folder_name = NULL, match_ylim = FALSE, PM = FALSE, timer = TRUE, Med_TTEM = FALSE, sensitivity_analysis = FALSE, sensitivity_analysis_match_ylim = FALSE){
-  # zvec = NULL; plot_result = TRUE; iPSEweights = TRUE; bootstrap = TRUE; boot_times = 1000; num_of_cores = 1; for_bootstrap = FALSE; push_warnings = TRUE; plot_unit = 1; save_plot = F; plot_name = NULL; folder_name = NULL; match_ylim = FALSE; PM = FALSE; timer = TRUE; Med_TTEM = TRUE; sensitivity_analysis = TRUE; sensitivity_analysis_match_ylim = 'effect'
+DNHiPSE = function(data, zvec = NULL, plot_result = TRUE, iPSEweights = TRUE, weights = NULL, bootstrap = FALSE, boot_times = 1000, num_of_cores = 1, for_bootstrap = FALSE,
+                   push_warnings = TRUE, plot_unit = 1, save_plot = FALSE, plot_name = NULL, folder_name = NULL, match_ylim = FALSE, PM = FALSE, timer = TRUE, Med_TTEM = FALSE, sensitivity_analysis = FALSE, sensitivity_analysis_match_ylim = FALSE){
+  # zvec = NULL; plot_result = TRUE; iPSEweights = TRUE; weights = NULL; bootstrap = TRUE; boot_times = 1000; num_of_cores = 1; for_bootstrap = FALSE; push_warnings = TRUE; plot_unit = 1; save_plot = F; plot_name = NULL; folder_name = NULL; match_ylim = FALSE; PM = FALSE; timer = TRUE; Med_TTEM = TRUE; sensitivity_analysis = TRUE; sensitivity_analysis_match_ylim = 'effect'
   if(bootstrap & num_of_cores > 1){require(snow); require(doSNOW); require(pracma); require(foreach);}
 
   ## data pre-check
@@ -18,7 +18,9 @@ DNHiPSE = function(data, zvec = NULL, plot_result = TRUE, iPSEweights = TRUE, bo
   if(is.vector(data)){return(list(index_wrong_order = data))}
 
   ## get components
-  components = DNH_get_components(data)
+  if(is.null(weights)){weights = rep(1, dim(data)[1])}
+  if(!is.vector(weights)){stop("weights must be a numeric vector.")}
+  components = DNH_get_components(data, weights)
 
   ## need plug-in
   zvec_len = ifelse(is.null(zvec), 4, length(zvec))
@@ -62,7 +64,7 @@ DNHiPSE = function(data, zvec = NULL, plot_result = TRUE, iPSEweights = TRUE, bo
         boot_data = data[boot_index, ]
         boot_data = DNH_boot_shift_data(boot_data, min_diff)
         boot_data = boot_data[sort(boot_data$T3, index.return = TRUE)$ix, ]
-        boot_effect = tryCatch(DNHiPSE(boot_data, zvec = zvec, iPSEweights = iPSEweights, PM = PM, bootstrap = FALSE, plot_result = FALSE, for_bootstrap = TRUE), error = function(msg){return(list(msg = msg))})
+        boot_effect = tryCatch(DNHiPSE(boot_data, zvec = zvec, iPSEweights = iPSEweights, weights = weights, PM = PM, bootstrap = FALSE, plot_result = FALSE, for_bootstrap = TRUE), error = function(msg){return(list(msg = msg))})
         rm(list = "boot_data")
         gc()
         return(list(boot_effect))
@@ -103,7 +105,7 @@ DNHiPSE = function(data, zvec = NULL, plot_result = TRUE, iPSEweights = TRUE, bo
         boot_data = data[boot_index, ]
         boot_data = DNH_boot_shift_data(boot_data, min_diff)
         boot_data = boot_data[sort(boot_data$T3, index.return = TRUE)$ix, ]
-        boot_effect = tryCatch(DNHiPSE(boot_data, zvec = zvec, iPSEweights = iPSEweights, PM = PM, bootstrap = FALSE, plot_result = FALSE, for_bootstrap = TRUE), error = function(msg){return(list(msg = msg))})
+        boot_effect = tryCatch(DNHiPSE(boot_data, zvec = zvec, iPSEweights = iPSEweights, weights = weights, PM = PM, bootstrap = FALSE, plot_result = FALSE, for_bootstrap = TRUE), error = function(msg){return(list(msg = msg))})
         if(is.null(boot_effect$msg)){
           index_safe_boot = c(index_safe_boot, i)
           safe_num = safe_num + 1
@@ -179,7 +181,7 @@ DNHiPSE = function(data, zvec = NULL, plot_result = TRUE, iPSEweights = TRUE, bo
 
 # generate sample data and simulation
 #' @export
-DNH_simulation = function(type, hypo, sample_size = 1e3, iPSEweights = TRUE, repeat_size = 1e3, num_of_cores = 1, ylim = NULL){
+DNH_simulation = function(type, hypo, sample_size = 1e3, weights = NULL, iPSEweights = TRUE, repeat_size = 1e3, num_of_cores = 1, ylim = NULL){
   if(hypo == 'null'){
     alphaZ = 0; betaZ = 0; gammaZ = 0
   }else{
@@ -205,7 +207,7 @@ DNH_simulation = function(type, hypo, sample_size = 1e3, iPSEweights = TRUE, rep
 
       result_tmp = foreach(i = 1:repeat_size, .options.snow = opts, .combine = 'c') %dopar%{
         data = DNH_generate_data(m = sample_size, alphaZ, betaZ, gammaZ, seed = i)
-        result_tmp = tryCatch(DNHiPSE(data, bootstrap = TRUE, iPSEweights = iPSEweights, plot_result = FALSE)$effect, error = function(msg){return(list(msg = msg))})
+        result_tmp = tryCatch(DNHiPSE(data, bootstrap = TRUE, iPSEweights = iPSEweights, weights = weights, plot_result = FALSE)$effect, error = function(msg){return(list(msg = msg))})
 
         boot_lower_now = vector("list", 4)
         boot_upper_now = vector("list", 4)
@@ -227,7 +229,7 @@ DNH_simulation = function(type, hypo, sample_size = 1e3, iPSEweights = TRUE, rep
     }else{
       for(i in 1:repeat_size){
         data = DNH_generate_data(m = sample_size, alphaZ, betaZ, gammaZ, seed = i)
-        result_tmp = DNHiPSE(data, bootstrap = TRUE, iPSEweights = iPSEweights, plot_result = FALSE, timer = FALSE)$effect
+        result_tmp = DNHiPSE(data, bootstrap = TRUE, iPSEweights = iPSEweights, weights = weights, plot_result = FALSE, timer = FALSE)$effect
 
         for(j in 1:4){
           boot_lower_now = approx(result_tmp[[j]]$time, result_tmp[[j]]$boot_lower, timeline, yleft = 0, rule = 2)$y
@@ -263,7 +265,7 @@ DNH_simulation = function(type, hypo, sample_size = 1e3, iPSEweights = TRUE, rep
     for(i in 1:repeat_size){
       if(i %% (repeat_size/100) == 0){pracma::fprintf("-")}
       data = DNH_generate_data(m = sample_size, alphaZ, betaZ, gammaZ, seed = i)
-      result_tmp = DNHiPSE(data, bootstrap = FALSE, iPSEweights = iPSEweights)$effect
+      result_tmp = DNHiPSE(data, bootstrap = FALSE, iPSEweights = iPSEweights, weights = weights)$effect
 
       for(j in 1:4){
         result[[i]][, j] = approx(result_tmp[[j]]$time, result_tmp[[j]]$effect, timeline, yleft = 0, rule = 2)$y
@@ -741,7 +743,7 @@ DNH_get_sick_number = function(data, time_pt = NULL){
 
 # functions help us get estimators
 #' @export
-DNH_get_Ybar = function(data){
+DNH_get_Ybar = function(data, weights){
   dataZ1_index = (data$Z == 1)
 
   ## This part gives you YbarZ1_check (Z2) which is the same as YbarZ1 (Z2).
@@ -757,8 +759,8 @@ DNH_get_Ybar = function(data){
   #     if(j <= dim(dataZ2)[1]){YbarZ2_check[i] = YbarZ2_check[i] + (dataZ2$T3[j] >= all_time[i])}
   #   }
   # }
-  YbarZ1 = data.frame(time = data$T3, value = DNH_revcumsum(dataZ1_index))
-  YbarZ2 = data.frame(time = data$T3, value = DNH_revcumsum(!dataZ1_index))
+  YbarZ1 = data.frame(time = data$T3, value = DNH_revcumsum(dataZ1_index * weights))
+  YbarZ2 = data.frame(time = data$T3, value = DNH_revcumsum((!dataZ1_index) * weights))
   if(sum(diff(data$T3) == 0) > 0){
     YbarZ1$value = approx(YbarZ1$time, YbarZ1$value, data$T3, ties = 'max')$y
     YbarZ2$value = approx(YbarZ2$time, YbarZ2$value, data$T3, ties = 'max')$y
@@ -770,9 +772,12 @@ DNH_get_Ybar = function(data){
   return(Ybar)
 }
 #' @export
-DNH_get_Ybar_n1.. = function(data){
+DNH_get_Ybar_n1.. = function(data, weights){
   dataZ1 = data[data$Z == 1, ]
   dataZ2 = data[data$Z == 2, ]
+
+  weightsZ1 = weights[data$Z == 1]
+  weightsZ2 = weights[data$Z == 2]
 
   ## n1 = 0
   ## This part gives you Ybar0.Z1_check (Z2) which is the same as Ybar0.Z1 (Z2).
@@ -786,9 +791,9 @@ DNH_get_Ybar_n1.. = function(data){
   #   }
   # }
   tmp_time = sort(c(dataZ1$T1[dataZ1$d1 == 1], dataZ1$T3[dataZ1$d1 == 0]))
-  Ybar0.Z1 = data.frame(time = data$T3, value = approx(x = tmp_time, y = dim(dataZ1)[1]:1, xout = data$T3, method = 'constant', rule = 2, yright = 0, f = 1, ties = 'max')$y)
+  Ybar0.Z1 = data.frame(time = data$T3, value = approx(x = tmp_time, y = DNH_revcumsum(weightsZ1), xout = data$T3, method = 'constant', rule = 2, yright = 0, f = 1, ties = 'max')$y)
   tmp_time = sort(c(dataZ2$T1[dataZ2$d1 == 1], dataZ2$T3[dataZ2$d1 == 0]))
-  Ybar0.Z2 = data.frame(time = data$T3, value = approx(x = tmp_time, y = dim(dataZ2)[1]:1, xout = data$T3, method = 'constant', rule = 2, yright = 0, f = 1, ties = 'max')$y)
+  Ybar0.Z2 = data.frame(time = data$T3, value = approx(x = tmp_time, y = DNH_revcumsum(weightsZ2), xout = data$T3, method = 'constant', rule = 2, yright = 0, f = 1, ties = 'max')$y)
   # Ybar0.Z1$value - Ybar0.Z1_check
   # Ybar0.Z2$value - Ybar0.Z2_check
 
@@ -806,7 +811,7 @@ DNH_get_Ybar_n1.. = function(data){
   if(sum(dataZ1$d1 == 1) == 0){
     Ybar1.Z1 = data.frame(time = data$T3, value = 0)
   }else{
-    Ybar1.Z1_tmp = DNH_get_sick_number(dataZ1[dataZ1$d1 == 1, c(1, 5)], data$T3)
+    Ybar1.Z1_tmp = DNH_get_sick_number(cbind(dataZ1[dataZ1$d1 == 1, c(1, 5)], weightsZ1[dataZ1$d1 == 1]), data$T3)
     if(length(Ybar1.Z1_tmp) == length(data$T3)){
       Ybar1.Z1 = data.frame(time = data$T3, value = Ybar1.Z1_tmp)
     }else{
@@ -816,7 +821,7 @@ DNH_get_Ybar_n1.. = function(data){
   if(sum(dataZ2$d1 == 1) == 0){
     Ybar1.Z2 = data.frame(time = data$T3, value = 0)
   }else{
-    Ybar1.Z2_tmp = DNH_get_sick_number(dataZ2[dataZ2$d1 == 1, c(1, 5)], data$T3)
+    Ybar1.Z2_tmp = DNH_get_sick_number(cbind(dataZ2[dataZ2$d1 == 1, c(1, 5)], weightsZ2[dataZ2$d1 == 1]), data$T3)
     if(length(Ybar1.Z2_tmp) == length(data$T3)){
       Ybar1.Z2 = data.frame(time = data$T3, value = Ybar1.Z2_tmp)
     }else{
@@ -831,9 +836,12 @@ DNH_get_Ybar_n1.. = function(data){
   return(Ybarn1..)
 }
 #' @export
-DNH_get_Ybar_..n2 = function(data){
+DNH_get_Ybar_..n2 = function(data, weights){
   dataZ1 = data[data$Z == 1, ]
   dataZ2 = data[data$Z == 2, ]
+
+  weightsZ1 = weights[data$Z == 1]
+  weightsZ2 = weights[data$Z == 2]
 
   ## n2 = 0
   ## This part gives you Ybar.0Z1_check (Z2) which is the same as Ybar.0Z1 (Z2).
@@ -846,8 +854,8 @@ DNH_get_Ybar_..n2 = function(data){
   #     if(j <= dim(dataZ2)[1]){Ybar.0Z2_check[i] = Ybar.0Z2_check[i] + ((dataZ2$T3[j] >= all_time[i]) & !(dataZ2$T2[j] < all_time[i] & dataZ2$d2[j]))}
   #   }
   # }
-  Ybar.0Z1 = data.frame(time = data$T3, value = approx(x = sort(dataZ1$T2), y = dim(dataZ1)[1]:1, xout = data$T3, method = 'constant', rule = 2, yright = 0, f = 1, ties = 'max')$y)
-  Ybar.0Z2 = data.frame(time = data$T3, value = approx(x = sort(dataZ2$T2), y = dim(dataZ2)[1]:1, xout = data$T3, method = 'constant', rule = 2, yright = 0, f = 1, ties = 'max')$y)
+  Ybar.0Z1 = data.frame(time = data$T3, value = approx(x = sort(dataZ1$T2), y = DNH_revcumsum(weightsZ1), xout = data$T3, method = 'constant', rule = 2, yright = 0, f = 1, ties = 'max')$y)
+  Ybar.0Z2 = data.frame(time = data$T3, value = approx(x = sort(dataZ2$T2), y = DNH_revcumsum(weightsZ2), xout = data$T3, method = 'constant', rule = 2, yright = 0, f = 1, ties = 'max')$y)
   # Ybar.0Z1$value - Ybar.0Z1_check
   # Ybar.0Z2$value - Ybar.0Z2_check
 
@@ -865,7 +873,7 @@ DNH_get_Ybar_..n2 = function(data){
   if(sum(dataZ1$d2 == 1) == 0){
     Ybar.1Z1 = data.frame(time = data$T3, value = 0)
   }else{
-    Ybar.1Z1_tmp = DNH_get_sick_number(dataZ1[dataZ1$d2 == 1, c(3, 5)], data$T3)
+    Ybar.1Z1_tmp = DNH_get_sick_number(cbind(dataZ1[dataZ1$d2 == 1, c(3, 5)], weightsZ1[dataZ1$d2 == 1]), data$T3)
     if(length(Ybar.1Z1_tmp) == length(data$T3)){
       Ybar.1Z1 = data.frame(time = data$T3, value = Ybar.1Z1_tmp)
     }else{
@@ -876,7 +884,7 @@ DNH_get_Ybar_..n2 = function(data){
   if(sum(dataZ2$d2 == 1) == 0){
     Ybar.1Z2 = data.frame(time = data$T3, value = 0)
   }else{
-    Ybar.1Z2_tmp = DNH_get_sick_number(dataZ2[dataZ2$d2 == 1, c(3, 5)], data$T3)
+    Ybar.1Z2_tmp = DNH_get_sick_number(cbind(dataZ2[dataZ2$d2 == 1, c(3, 5)], weightsZ2[dataZ2$d2 == 1]), data$T3)
     if(length(Ybar.1Z2_tmp) == length(data$T3)){
       Ybar.1Z2 = data.frame(time = data$T3, value = Ybar.1Z2_tmp)
     }else{
@@ -891,9 +899,12 @@ DNH_get_Ybar_..n2 = function(data){
   return(Ybar..n2)
 }
 #' @export
-DNH_get_Ybar_n1n2 = function(data, Ybar, Ybarn1.., Ybar..n2){
+DNH_get_Ybar_n1n2 = function(data, Ybar, Ybarn1.., Ybar..n2, weights){
   dataZ1 = data[data$Z == 1, ]
   dataZ2 = data[data$Z == 2, ]
+
+  weightsZ1 = weights[data$Z == 1]
+  weightsZ2 = weights[data$Z == 2]
 
   ## n1 = 1, n2 = 1
   # all_time = data$T3
@@ -909,7 +920,7 @@ DNH_get_Ybar_n1n2 = function(data, Ybar, Ybarn1.., Ybar..n2){
   if(sum(dataZ1$d1 == 1 & dataZ1$d2 == 1) == 0){
     Ybar11Z1 = data.frame(time = data$T3, value = 0)
   }else{
-    Ybar11Z1_tmp = DNH_get_sick_number(dataZ1[dataZ1$d1 == 1 & dataZ1$d2 == 1, c(3, 5)], data$T3)
+    Ybar11Z1_tmp = DNH_get_sick_number(cbind(dataZ1[dataZ1$d1 == 1 & dataZ1$d2 == 1, c(3, 5)], weightsZ1[dataZ1$d1 == 1 & dataZ1$d2 == 1]), data$T3)
     if(length(Ybar11Z1_tmp) == length(data$T3)){
       Ybar11Z1 = data.frame(time = data$T3, value = Ybar11Z1_tmp)
     }else{
@@ -920,7 +931,7 @@ DNH_get_Ybar_n1n2 = function(data, Ybar, Ybarn1.., Ybar..n2){
   if(sum(dataZ2$d1 == 1 & dataZ2$d2 == 1) == 0){
     Ybar11Z2 = data.frame(time = data$T3, value = 0)
   }else{
-    Ybar11Z2_tmp = DNH_get_sick_number(dataZ2[dataZ2$d1 == 1 & dataZ2$d2 == 1, c(3, 5)], data$T3)
+    Ybar11Z2_tmp = DNH_get_sick_number(cbind(dataZ2[dataZ2$d1 == 1 & dataZ2$d2 == 1, c(3, 5)], weightsZ2[dataZ2$d1 == 1 & dataZ2$d2 == 1]), data$T3)
     if(length(Ybar11Z2_tmp) == length(data$T3)){
       Ybar11Z2 = data.frame(time = data$T3, value = Ybar11Z2_tmp)
     }else{
@@ -1088,7 +1099,7 @@ DNH_get_weights = function(dLn1n2, iPSEweights = TRUE){
   return(weights)
 }
 #' @export
-DNH_get_dN3bar_n1n2 = function(data){
+DNH_get_dN3bar_n1n2 = function(data, weights){
   m = dim(data)[1]
   data = data[sort(data$T3, index.return = TRUE)$ix, ]
   dataZ1 = data[data$Z == 1, ]
@@ -1098,8 +1109,8 @@ DNH_get_dN3bar_n1n2 = function(data){
   boolean00 = data$d1 == 0 & data$d2 == 0 & data$d3 == 1
   dN3bar00Z1 = rep(0, m)
   dN3bar00Z2 = rep(0, m)
-  dN3bar00Z1[boolean00 & data$Z == 1] = 1
-  dN3bar00Z2[boolean00 & data$Z == 2] = 1
+  dN3bar00Z1[boolean00 & data$Z == 1] = weights[boolean00 & data$Z == 1]
+  dN3bar00Z2[boolean00 & data$Z == 2] = weights[boolean00 & data$Z == 2]
   dN3bar00Z1 = data.frame(time = data$T3, value = dN3bar00Z1)
   dN3bar00Z2 = data.frame(time = data$T3, value = dN3bar00Z2)
 
@@ -1107,8 +1118,8 @@ DNH_get_dN3bar_n1n2 = function(data){
   boolean01 = data$d1 == 0 & data$d2 == 1 & data$d3 == 1
   dN3bar01Z1 = rep(0, m)
   dN3bar01Z2 = rep(0, m)
-  dN3bar01Z1[boolean01 & data$Z == 1] = 1
-  dN3bar01Z2[boolean01 & data$Z == 2] = 1
+  dN3bar01Z1[boolean01 & data$Z == 1] = weights[boolean01 & data$Z == 1]
+  dN3bar01Z2[boolean01 & data$Z == 2] = weights[boolean01 & data$Z == 2]
   dN3bar01Z1 = data.frame(time = data$T3, value = dN3bar01Z1)
   dN3bar01Z2 = data.frame(time = data$T3, value = dN3bar01Z2)
 
@@ -1116,8 +1127,8 @@ DNH_get_dN3bar_n1n2 = function(data){
   boolean10 = data$d1 == 1 & data$d2 == 0 & data$d3 == 1
   dN3bar10Z1 = rep(0, m)
   dN3bar10Z2 = rep(0, m)
-  dN3bar10Z1[boolean10 & data$Z == 1] = 1
-  dN3bar10Z2[boolean10 & data$Z == 2] = 1
+  dN3bar10Z1[boolean10 & data$Z == 1] = weights[boolean10 & data$Z == 1]
+  dN3bar10Z2[boolean10 & data$Z == 2] = weights[boolean10 & data$Z == 2]
   dN3bar10Z1 = data.frame(time = data$T3, value = dN3bar10Z1)
   dN3bar10Z2 = data.frame(time = data$T3, value = dN3bar10Z2)
 
@@ -1125,8 +1136,8 @@ DNH_get_dN3bar_n1n2 = function(data){
   boolean11 = data$d1 == 1 & data$d2 == 1 & data$d3 == 1
   dN3bar11Z1 = rep(0, m)
   dN3bar11Z2 = rep(0, m)
-  dN3bar11Z1[boolean11 & data$Z == 1] = 1
-  dN3bar11Z2[boolean11 & data$Z == 2] = 1
+  dN3bar11Z1[boolean11 & data$Z == 1] = weights[boolean11 & data$Z == 1]
+  dN3bar11Z2[boolean11 & data$Z == 2] = weights[boolean11 & data$Z == 2]
   dN3bar11Z1 = data.frame(time = data$T3, value = dN3bar11Z1)
   dN3bar11Z2 = data.frame(time = data$T3, value = dN3bar11Z2)
 
@@ -1199,14 +1210,14 @@ DNH_get_dL_n1n2 = function(dN3barn1n2, Ybarn1n2){
   return(dLn1n2)
 }
 #' @export
-DNH_get_components = function(data){
+DNH_get_components = function(data, weights){
   m = dim(data)[1]
 
   ## Y and mu related
-  Ybar = DNH_get_Ybar(data)
-  Ybarn1.. = DNH_get_Ybar_n1..(data)
-  Ybar..n2 = DNH_get_Ybar_..n2(data)
-  Ybarn1n2 = DNH_get_Ybar_n1n2(data, Ybar, Ybarn1.., Ybar..n2)
+  Ybar = DNH_get_Ybar(data, weights)
+  Ybarn1.. = DNH_get_Ybar_n1..(data, weights)
+  Ybar..n2 = DNH_get_Ybar_..n2(data, weights)
+  Ybarn1n2 = DNH_get_Ybar_n1n2(data, Ybar, Ybarn1.., Ybar..n2, weights)
 
   ## w related
   wn1n2 = DNH_get_w_n1n2(Ybar, Ybarn1n2)
@@ -1215,7 +1226,7 @@ DNH_get_components = function(data){
   wcondn1n2 = DNH_get_wcond_n1n2(Ybarn1n2, Ybarn1..)
 
   ## dL related
-  dN3barn1n2 = DNH_get_dN3bar_n1n2(data)
+  dN3barn1n2 = DNH_get_dN3bar_n1n2(data, weights)
   dLn1n2 = DNH_get_dL_n1n2(dN3barn1n2, Ybarn1n2)
 
   ## weights related

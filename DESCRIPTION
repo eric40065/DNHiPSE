@@ -1,6 +1,6 @@
 Package: DNHiPSE
 Title: Package for "Modeling the natural history of human diseases".
-Version: 5.4.2
+Version: 5.5.0
 Authors@R: 
     person(given = "Ju-Sheng",
            family = "Hong",

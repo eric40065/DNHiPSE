@@ -9,6 +9,7 @@ DNHiPSE(
   zvec = NULL,
   plot_result = TRUE,
   iPSEweights = TRUE,
+  weights = NULL,
   bootstrap = FALSE,
   boot_times = 1000,
   num_of_cores = 1,
