@@ -13,7 +13,7 @@ library(DNHiPSE)
 # To reproduce Table 1. It will take 1.8 hours to reproduce it.
 Table11 = DNH_simulation("coverage", "null", sample_size = 300)
 Table12 = DNH_simulation("coverage", "null", sample_size = 1000)
-Table13 = DNH_simulation("coverage", "alternative", sample_size = 1000)
+Table13 = DNH_simulation("coverage", "alternative", sample_size = 300)
 Table14 = DNH_simulation("coverage", "alternative", sample_size = 1000)
 
 # To reproduce Figure 3
