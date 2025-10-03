@@ -1,5 +1,5 @@
 # DNHiPSE
-This R-package is aimed to illustrate the methodology presented in "Modeling the natural history of human diseases".
+This R-package is aimed to illustrate the methodology presented in "Nonparametric Path‐Specific Effects on a Survival Outcome Through Multiple Time‐to‐Event Mediators".
 
 ## Installation
 ```r
